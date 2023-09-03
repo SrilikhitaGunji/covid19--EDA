@@ -1,0 +1,126 @@
+
+-- check if the datasets have been imported
+
+SELECT*FROM Covid_db..covid_deaths
+SELECT*FROM Covid_db..covid_vaccination
+
+-- count the number of lines the dataset has
+
+SELECT COUNT(*)
+FROM covid_db..covid_deaths;
+--100181
+
+SELECT COUNT(*)
+FROM Covid_db..covid_vaccination;
+--100181
+
+--Exploring the columns which are important in the dataset covid.deaths.csv
+
+SELECT date, continent, location, total_cases, new_cases, total_deaths, population
+FROM covid_db..covid_deaths
+ORDER BY location, date;
+
+-- Checking for duplicate values for covid deaths table
+
+SELECT date, continent, location,
+COUNT(*) as Checking_Dup
+FROM covid_db..covid_deaths
+GROUP BY date, continent, location
+Having COUNT(*)>1
+-- 0 rows effected
+
+-- Checking for duplicate values for covid vaccination table
+
+SELECT date, continent, location,
+COUNT(*) as Checking_Dup
+FROM covid_db..covid_vaccination
+GROUP BY date, continent, location
+HAVING COUNT(*) > 1
+-- 0 rows affected
+
+--Checking the quantity of continents and countries
+--Continents
+
+SELECT COALESCE(continent, 'Total') as Continent,
+COUNT(continent) as Count
+FROM(SELECT DISTINCT continent
+FROM covid_db..covid_deaths) as Subquery
+GROUP BY continent with rollup
+ORDER BY continent
+
+-- 6 continents in total . 
+-- 1 field counted as "continent" which in actual has empty values.
+
+--Countries
+
+SELECT COUNT(location) as Qtt_Countries
+FROM(SELECT DISTINCT location
+FROM covid_db..covid_deaths) as Subquery
+-- quantity of countires in the dataset covid deaths is 230.
+
+-- Calculating the avg number of deaths by day by considering continents and countries
+
+SELECT location,
+ROUND(AVG(TRY_CAST(new_deaths AS DECIMAL(10, 2))), 2) AS Deaths_Average_Day
+FROM covid_db..covid_deaths
+GROUP BY location
+ORDER BY Deaths_Average_Day DESC;
+
+-- Average of cases divided by the number of population of each country (TOP 10)
+
+
+SELECT TOP 10 continent, location,
+ROUND(AVG((TRY_CAST(total_cases AS DECIMAL(18, 2)) / TRY_CAST(population AS DECIMAL(18, 2))) * 100), 2) AS Percentage_Population
+FROM covid_db..covid_deaths
+GROUP BY continent, location
+ORDER BY Percentage_Population DESC;
+
+-- calculating the highest rate of infection in relation to population by considering highest values of total cases
+
+SELECT TOP 10 location,
+    MAX(TRY_CAST(total_cases AS DECIMAL(18, 2))) AS Max_of_Cases,
+    population,
+    ROUND(MAX(TRY_CAST(total_cases AS DECIMAL(18, 2)) * 100.0 / TRY_CAST(population AS DECIMAL(18, 2))), 2) AS Perc_Pop_Infected
+FROM covid_db..covid_deaths
+WHERE continent IS NOT NULL
+GROUP BY location, population
+ORDER BY Perc_Pop_Infected DESC;
+
+-- calculating the highest number fo deaths based on countires
+
+SELECT location,
+MAX(total_deaths) AS Max_of_Deaths
+FROM covid_db..covid_deaths
+WHERE continent IS NOT NULL
+GROUP BY location
+ORDER BY Max_of_Deaths DESC;
+
+--- total world deaths
+
+SELECT SUM(TRY_CAST(total_deaths AS BIGINT)) AS Total_World_Deaths
+FROM covid_db..covid_deaths
+WHERE continent IS NOT NULL;
+--2508558351
+
+-- calculating the highest number fo deaths based on continents
+SELECT continent,
+MAX(total_deaths) as Highest_Death
+FROM covid_db..covid_deaths
+WHERE continent IS NOT NULL
+GROUP BY continent
+ORDER BY Highest_Death DESC;
+-- 7 rows effected
+
+--Number of new vaccinated and rolling average of new vaccinated over time by country on the European continent
+
+SELECT deaths.continent, deaths.location, deaths.date,
+       vaccination.new_vaccinations,
+       AVG(TRY_CAST(vaccination.new_vaccinations AS DECIMAL(10, 2))) 
+           OVER (PARTITION BY deaths.location ORDER BY deaths.date) as RollingAvg_Vaccines
+FROM covid_db..covid_deaths deaths
+JOIN covid_db..covid_vaccination vaccination
+ON deaths.location = vaccination.location
+AND deaths.date = vaccination.date
+WHERE deaths.continent = 'Europe'
+ORDER BY location, date;
+
